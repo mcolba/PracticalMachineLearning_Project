@@ -13,9 +13,9 @@ knitr::opts_chunk$set(echo = TRUE)
 
 Practical Machine Learning!!
 ```{r}
+
 require(stats)
 plot(cars)
-
 lines(lowess(cars))
 ```
 
