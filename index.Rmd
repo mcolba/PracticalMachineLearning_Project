@@ -163,7 +163,6 @@ accuracy <- sum(predComb==validation$classe)/length(predComb)
 print(accuracy)
 # comparison with random forest alone 
 print(rf)
-
 ```
 By combining the predictors there is a really small accuracy gain. However the value 
 # Prediction on Testing Set 
