@@ -54,7 +54,6 @@ control <- trainControl(method="cv", number=2) # my old computer do not support 
 set.seed(883)
 # 1. Tree  
 modFit1 <- train(classe ~ ., method="rpart", data=training, trControl=control) 
-library(rattle); fancyRpartPlot(modFit1$finalModel, cex=.8)
 confusionMatrix(modFit1)
 # 2. Boost (gbm)
 modFit2 <- train(classe ~ ., method="gbm", data=training, verbose=FALSE, trControl=control) 
@@ -164,8 +163,8 @@ print(accuracy)
 # comparison with random forest alone 
 print(rf)
 ```
-By combining the predictors there is a really small accuracy gain. However the value 
-# Prediction on Testing Set 
+By combining the predictors there is a really small accuracy gain. However the accuracy is almost equal to the random forest stand-alone model. 
+## Prediction on Testing Set 
 ```{r,message=FALSE}
 df2 <- read.csv("pml-testing.csv",header=T, na.string=c("","NA","NULL")) 
 df2.clean <- df2[ , NA_clean]
