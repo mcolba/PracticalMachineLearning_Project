@@ -20,20 +20,18 @@ df1 <- read.csv("pml-training.csv",header=T, na.string=c("","NA","NULL"))
 ```
 Check and adjust for NA vlues and near zero variance features. 
 ```{r, message=FALSE}
-# number of columns containing NA values 
-sum(colSums(is.na(df1))!= 0)
+sum(colSums(is.na(df1))!= 0) # number of features containing NA values
 NA_clean <- colSums(is.na(df1)) == 0
 df1.clean <- df1[ , NA_clean]
-# Near zero variance 
 library(caret)
 preproc <- nearZeroVar(df1.clean, saveMetrics=TRUE)
-names(df1.clean)[preproc$nzv]
+names(df1.clean)[preproc$nzv] # names of features with n.z.v. 
 nzv_clean <- which(preproc$nzv)
 df1.clean <- df1.clean[,-nzv_clean]
 ```
 101 variables have been delated because of NA values or small variance. In addition, by looking at the remaining variables seems that the firs seven are not of interest for this analysys. 
 ```{r,message=FALSE}
-# Unnecessary predictors 
+# Exclude unnecessary predictors 
 df1.clean <- df1.clean[,-(1:7)]
 ```
 ## Subsampling 
@@ -45,11 +43,13 @@ training <- df1.clean[inTrain,]; validation <- df1.clean[-inTrain,]
 dim(training); dim(validation)
 ```
 ## Preliminary Analysis
-```{r,message=FALSE,warning = FALSE}
+```{r,results = "hide",message=FALSE,warning = FALSE}
 # Clean Memory  
 rm(df1);rm(df1.clean); rm(inTrain)
 gc(); gc(verbose=T)
+```
 
+```{r,message=FALSE,warning = FALSE}
 control <- trainControl(method="cv", number=2) # my old computer do not support anything better w/o running out of memory =(
 set.seed(883)
 # 1. Tree  
@@ -86,6 +86,7 @@ x<-c(tree=tree,boost=boost,nb=nb,rf=rf,svm=svm)
 print(x)
 barplot(height=x, ylab = "Accuracy", ylim=c(0,1))
 ```
+
 The random foret is by far the most accurate model, followed by boost and support vector machine. Expecially SVM may be haighly influenced by correlation in the features. 
 
 ## Pre-processing 
@@ -108,12 +109,14 @@ validation <- cbind(predict(preProc,validation[,-52]) , classe = validation$clas
 ```
 
 ## Models Analysis 
-Now all modells are estimated once again, using principal components instead of the original features.  
-```{r, message=FALSE,warning = FALSE}
+```{r,results = "hide",message=FALSE,warning = FALSE}
 # Clean memory 
 rm(modFit1); rm(modFit3) # Discard bad models 
 gc(); gc(verbose=T)
+```
 
+Now all modells are estimated once again, using principal components instead of the original features.  
+```{r, message=FALSE,warning = FALSE}
 set.seed(883)
 # 1. Tree  
 modFit6 <- train(classe ~ ., method="rpart", data=training, trControl=control) 
