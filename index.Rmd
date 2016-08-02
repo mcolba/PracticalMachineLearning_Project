@@ -11,7 +11,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ## Data Cleaning  
 
-Read the CSV data
+Read the CSV training data set 
 ```{r, message=FALSE}
 rm(list=ls())
 set.seed(883)
@@ -35,12 +35,15 @@ df1.clean <- df1.clean[,-nzv_clean]
 df1.clean <- df1.clean[,-(1:7)]
 ```
 ## Subsampling 
-Create a training and a validation set from the first dataframe. 
+Since the sample is relatively large is possible to reate three different sub-samples: training, testing and validation set. 
 ```{r,message=FALSE}
 # Create training and Validation sets: 
-inTrain <- createDataPartition(y=df1.clean$classe, p=0.6, list=FALSE)
-training <- df1.clean[inTrain,]; validation <- df1.clean[-inTrain,]
-dim(training); dim(validation)
+  # Create a building data set and validation set
+inTrain <- createDataPartition(y=df1.clean$classe,p=0.6, list=FALSE)
+training <- df1.clean[inTrain,]; buildData <- df1.clean[-inTrain,]
+inTest <- createDataPartition(y=buildData$classe,p=0.5, list=FALSE)
+testing <- buildData[inTest,]; validation <- buildData[-inTest,]
+dim(training); dim(validation); dim(testing)
 ```
 ## Preliminary Analysis
 ```{r,results = "hide",message=FALSE,warning = FALSE}
@@ -48,7 +51,7 @@ dim(training); dim(validation)
 rm(df1);rm(df1.clean); rm(inTrain)
 gc(); gc(verbose=T)
 ```
-
+Five different algorithms are used to fit the training data set. These are: Tree, Gradient Boosting Machine (GBM), naive bayes, random forest and support vector machine (SVM). 
 ```{r,message=FALSE,warning = FALSE}
 control <- trainControl(method="cv", number=2) # my old computer do not support anything better w/o running out of memory =(
 set.seed(883)
@@ -69,28 +72,29 @@ library(e1071)
 f <- formula("classe ~ .")
 modFit5 <- svm(f, data=training) 
 ```
-performance on valuatiuon set. 
+Performance of the various algorithm are compared using the accuracy rate on the testing set.  
 ```{r,message=FALSE,warning = FALSE}
-pred1 <- predict(modFit1,validation)
-tree <- sum(pred1==validation$classe)/length(pred1)
-pred2 <- predict(modFit2,validation)
-boost <- sum(pred2==validation$classe)/length(pred2)
-pred3 <- predict(modFit3, validation)
-nb <- sum(pred3==validation$classe)/length(pred3)
-pred4 <- predict(modFit4, validation)
-rf <- sum(pred4==validation$classe)/length(pred4)
-pred5 <- predict(modFit5, validation)
-svm <- sum(pred5==validation$classe)/length(pred5)
+pred1 <- predict(modFit1,testing)
+tree <- sum(pred1==testing$classe)/length(pred1)
+pred2 <- predict(modFit2,testing)
+boost <- sum(pred2==testing$classe)/length(pred2)
+pred3 <- predict(modFit3, testing)
+nb <- sum(pred3==testing$classe)/length(pred3)
+pred4 <- predict(modFit4, testing)
+rf <- sum(pred4==testing$classe)/length(pred4)
+pred5 <- predict(modFit5, testing)
+svm <- sum(pred5==testing$classe)/length(pred5)
 
 x<-c(tree=tree,boost=boost,nb=nb,rf=rf,svm=svm)
 print(x)
 barplot(height=x, ylab = "Accuracy", ylim=c(0,1))
 ```
 
-The random foret is by far the most accurate model, followed by boost and support vector machine. Expecially SVM may be haighly influenced by correlation in the features. 
+The random foret is by far the most accurate model, followed by GBM and SVM. So far all eligible features have been used. However some pre-pocessing of the data may improve the model if features are correlated or capture too much the noise in the data. Expecially the SVM model may be haighly influenced by correlation in the features. 
 
 ## Pre-processing 
 ```{r,message=FALSE}
+# Analyzing correlation among features.
 quantile( cor(training[,-52]), probs=c(0,0.1,0.9,1))
 mat <- abs(cor(training[,-52]))
 diag(mat) <- 0; sum(mat > 0.8)/2 
@@ -101,11 +105,12 @@ pc <- prcomp(training[,-52],center=T,scale=T)
 cumulativeV <- cumsum(pc$sdev^2/sum(pc$sdev^2)) 
 plot(cumulativeV, type="l", xlab="PC",ylab="Explained Variance")
 ```
-In order to retain 90% of the variation 20 pincipal components are required. 
+In order to retain 90% of the variation 20 pincipal components are required. New sub-samples sets are obteined by applying PCA on the training set.  
 ```{r,message=FALSE}
 preProc <- preProcess(training[,-52], method="pca", thresh = 0.9)
-training <- cbind( predict(preProc,training[,-52]), classe = training$classe)  
-validation <- cbind(predict(preProc,validation[,-52]) , classe = validation$classe)  
+training.pc <- cbind( predict(preProc,training[,-52]), classe = training$classe)  
+testing.pc <- cbind(predict(preProc,testing[,-52]) , classe = testing$classe)  
+validation.pc <- cbind(predict(preProc,validation[,-52]) , classe = validation$classe)  
 ```
 
 ## Models Analysis 
@@ -119,56 +124,64 @@ Now all modells are estimated once again, using principal components instead of 
 ```{r, message=FALSE,warning = FALSE}
 set.seed(883)
 # 1. Tree  
-modFit6 <- train(classe ~ ., method="rpart", data=training, trControl=control) 
+modFit6 <- train(classe ~ ., method="rpart", data=training.pc, trControl=control) 
 library(rattle); fancyRpartPlot(modFit6$finalModel, cex=.8)
 confusionMatrix(modFit6)
 # 2. Boost (gbm)
-modFit7 <- train(classe ~ ., method="gbm", data=training, verbose=FALSE, trControl=control) 
+modFit7 <- train(classe ~ ., method="gbm", data=training.pc, verbose=FALSE, trControl=control) 
 confusionMatrix(modFit7)
 # 3. Naive Bayes
-modFit8 <- train(classe ~ ., method="nb",data=training, trControl=control) 
+modFit8 <- train(classe ~ ., method="nb",data=training.pc, trControl=control) 
 confusionMatrix(modFit8)
 # 4. Random Forest
-modFit9 <- train(classe ~ .,data=training, method="rf", trControl=control) 
+modFit9 <- train(classe ~ .,data=training.pc, method="rf", trControl=control) 
 confusionMatrix(modFit9)
 # 5. Support Vector Machine  
 library(e1071)
 f <- formula("classe ~ .")
-system.time( modFit10 <- svm(f, data=training) )
+modFit10 <- svm(f, data=training.pc) 
 ```
-performance on valuation set 
+Accuracy on valuation set 
 ```{r,message=FALSE,warning = FALSE}
-pred6 <- predict(modFit6,validation)
-treePC <- sum(pred6==validation$classe)/length(pred6)
-pred7 <- predict(modFit7,validation)
-boostPC <- sum(pred7==validation$classe)/length(pred7)
-pred8 <- predict(modFit8, validation)
-nbPC <- sum(pred8==validation$classe)/length(pred8)
-pred9 <- predict(modFit9, validation)
-rfPC <- sum(pred9==validation$classe)/length(pred9)
-pred10 <- predict(modFit10, validation)
-svmPC <- sum(pred10==validation$classe)/length(pred10)
+pred6 <- predict(modFit6,testing.pc)
+treePC <- sum(pred6==testing.pc$classe)/length(pred6)
+pred7 <- predict(modFit7,testing.pc)
+boostPC <- sum(pred7==testing.pc$classe)/length(pred7)
+pred8 <- predict(modFit8, testing.pc)
+nbPC <- sum(pred8==testing.pc$classe)/length(pred8)
+pred9 <- predict(modFit9, testing.pc)
+rfPC <- sum(pred9==testing.pc$classe)/length(pred9)
+pred10 <- predict(modFit10, testing.pc)
+svmPC <- sum(pred10==testing.pc$classe)/length(pred10)
 
 x<-c(tree=treePC,boost=boostPC,nb=nbPC,rf=rfPC,svm=svmPC)
 print(x)
 barplot(height=x, ylab = "Accuracy", ylim=c(0,1))
 ```
-The accuracy is smaller for all modells in comparison to the scenario which included all features. This is true even for the svm model. Apparently the major benefit of principal component analysis is more computational speed.   
+The accuracy is smaller for all modells in comparison to the scenario which included all features. This is true even for the svm model. Apparently the major benefit of using PCA is a gain in computational speed. 
 
 ## Combining Predictors
-The best 3 models are combined using random forest. These are boost, random forest and svm. The validation dataset containing all variacles is used, i.e no PCA.  
+The best 3 models are combined using random forest. These are boost, random forest and svm. The testing dataset containing all variacles is used for training (i.e no PCA). Now is not possible anymore to compute the accuracy on the testing set because it may incorporate overfitting, thus the validation set is used instead.
+
 ```{r,message=FALSE}
-df <- data.frame(pred2,pred4,pred5,classe=validation$classe)
+model2 <- predict(modFit2, testing)
+model4 <- predict(modFit4, testing)
+model5 <- predict(modFit5, testing)
+df <- data.frame(model2,model4,model5,classe=testing$classe)
 fitComb <- train(classe ~ ., data=df, method="rf", trControl=control)
-predComb <- predict(fitComb,validation)
+predComb <- predict(fitComb, validation)
 accuracy <- sum(predComb==validation$classe)/length(predComb)
 print(accuracy)
 # comparison with random forest alone 
 print(rf)
 ```
-By combining the predictors there is a really small accuracy gain. However the accuracy is almost equal to the random forest stand-alone model. 
-## Prediction on Testing Set 
+By combining the predictors there is a really small accuracy gain. However the accuracy is almost equal to the random forest stand-alone model.
+
+## Quiz Prediction
+
+The combined model is used to predict the classe variable for the second dataset provided.  
 ```{r,message=FALSE}
+# import and clean data
 df2 <- read.csv("pml-testing.csv",header=T, na.string=c("","NA","NULL")) 
 df2.clean <- df2[ , NA_clean]
 df2.clean <- df2.clean[,-nzv_clean]
@@ -179,8 +192,8 @@ tmp1 <- predict(modFit2, df2.clean)
 tmp2 <- predict(modFit4, df2.clean)
 tmp3 <- predict(modFit5, df2.clean)
 # Combined prediction 
-tmpdf <- data.frame(pred2=tmp1,pred4=tmp2,pred5=tmp3,classe=df2.clean$classe)
+tmpdf <- data.frame(model2=tmp1,model4=tmp2,model5=tmp3,classe=df2.clean$classe)
 answer2 <- predict(fitComb, tmpdf)
 print(answer2)
 ```
-
+Accuraci (according to the quiz solutions) is 1. 
